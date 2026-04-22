@@ -33,6 +33,7 @@ mod name;
 mod posix_thread_ext;
 mod robust_list;
 mod thread_local;
+mod ptrace;
 
 pub use builder::PosixThreadBuilder;
 pub(super) use exit::sigkill_other_threads;
@@ -90,6 +91,9 @@ pub struct PosixThread {
     timer_slack_ns: AtomicU64,
     /// The default timer slack value for this thread.
     default_timer_slack_ns: AtomicU64,
+
+    /// The ptrace information of this thread.
+    ptrace_info: Spinlock<PtraceInfo>,
 }
 
 impl PosixThread {
@@ -315,6 +319,15 @@ impl PosixThread {
     pub fn reset_timer_slack_to_default(&self) {
         let default = self.default_timer_slack_ns.load(Ordering::Relaxed);
         self.timer_slack_ns.store(default, Ordering::Relaxed);
+    }
+
+    pub fn tracer_tid(&self) -> Option<Tid> {
+        self.ptrace_info.lock().tracer_tid()
+    }
+
+    pub fn tracer(&self) -> Option<Acr<Thread>> {
+        let tracer_tid = self.tracer_tid()?;
+        pid_table::pid_table_mut().get_thread(tracer_tid)
     }
 }
 
